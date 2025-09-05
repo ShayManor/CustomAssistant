@@ -1062,14 +1062,19 @@
                 if (user) {
                     try {
                         // Check if user is authorized
-                        const userDoc = await db.collection('authorizedUsers').doc(user.uid).get();
-                        if (userDoc.exists && userDoc.data().authorized === true) {
-                            currentUser = user;
-                            showChatInterface();
-                        } else {
-                            await auth.signOut();
-                            showError('Your account is not authorized. Contact admin.');
-                            showLoginScreen();
+                        try {
+                          currentUser = user;
+                          console.log('uid:', user.uid, 'email:', user.email);
+
+                          const snap = await db.collection('authorizedUsers').doc(user.uid).get();
+                          console.log('exists:', snap.exists, 'data:', snap.data());
+
+                          if (snap.exists && snap.data().authorized === true) {
+                            showChatInterface();   // ← show the app
+                          }
+                        } catch (e) {
+                          showError('code:' + e.code + ' message:' + e.message);
+                          showLoginScreen();
                         }
                     } catch (error) {
                         console.error('Auth check error:', error);
