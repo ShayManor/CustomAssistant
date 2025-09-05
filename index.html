@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        .loading-content {
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-spinner::before {
+            content: '🤖';
+            font-size: 24px;
+            animation: spin 1s linear infinite reverse;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: none;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #4c1d95 50%, #0f172a 100%);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 32px;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .login-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .login-subtitle {
+            color: #94a3b8;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: #64748b;
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .login-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+        }
+
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .demo-info {
+            text-align: center;
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            color: #93c5fd;
+        }
+
+        /* Chat Interface */
+        .chat-container {
+            display: none;
+            height: 100vh;
+            background: #0f172a;
+        }
+
+        .chat-layout {
+            display: flex;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sidebar-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .sidebar-title h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            color: #ffffff;
+            background: #374151;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .new-chat-btn:hover {
+            background: #2563eb;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .chat-history {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .chat-history h3 {
+            color: #ffffff;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .chat-history p {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .sidebar-footer {
+            padding: 24px;
+            border-top: 1px solid #334155;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .user-details h4 {
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-details p {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        /* Main Chat */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .chat-header {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bot-avatar {
+            width: 32px;
+            height: 32px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .bot-info h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .bot-info p {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #0f172a;
+        }
+
+        .messages {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .message {
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .message.user .message-avatar {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #374151;
+            color: #9ca3af;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 16px 20px;
+            border-radius: 18px;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: #3b82f6;
+            color: white;
+            margin-right: 0;
+        }
+
+        .message.assistant .message-content {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+        }
+
+        .message.error .message-content {
+            background: #7f1d1d;
+            border: 1px solid #dc2626;
+            color: #fca5a5;
+        }
+
+        .message-tools {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tools-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .tool-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tool-tag {
+            padding: 4px 8px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+            font-size: 11px;
+            border-radius: 12px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #64748b;
+            border-radius: 50%;
+            animation: typing 1.5s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+
+        /* Input Area */
+        .input-container {
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            padding: 24px;
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-field {
+            flex: 1;
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 12px;
+            padding: 16px;
+            color: #ffffff;
+            font-size: 16px;
+            resize: none;
+            min-height: 24px;
+            max-height: 120px;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .input-field::placeholder {
+            color: #64748b;
+        }
+
+        .send-button {
+            width: 48px;
+            height: 48px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .send-button:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -320px;
+                z-index: 100;
+                transition: left 0.3s ease;
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .chat-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 50;
+                display: none;
+            }
+
+            .chat-overlay.show {
+                display: block;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+                background: none;
+                border: none;
+                color: #64748b;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+            }
+
+            .mobile-menu-btn:hover {
+                color: #ffffff;
+                background: #374151;
+            }
+        }
+
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        /* Icons */
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .icon-sm {
+            width: 16px;
+            height: 16px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>Loading your AI assistant...</h2>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-icon">🤖</div>
+                <h1 class="login-title">AI Assistant</h1>
+                <p class="login-subtitle">Access your intelligent companion</p>
+            </div>
+
+            <div id="errorMessage" class="error-message hidden"></div>
+
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="emailInput" class="form-input" placeholder="Enter your email">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" id="passwordInput" class="form-input" placeholder="Enter your password">
+            </div>
+
+            <button id="loginButton" class="login-button">
+                <span id="loginText">Sign In</span>
+                <div id="loginSpinner" class="hidden">⟳</div>
+            </button>
+
+            <div class="demo-info">
+                <strong>Demo Account:</strong><br>
+                Email: demo@example.com<br>
+                Password: demo123
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chatContainer" class="chat-container">
+        <div class="chat-layout">
+            <!-- Sidebar -->
+            <div id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">
+                        <h1>AI Assistant</h1>
+                        <button id="logoutBtn" class="logout-btn">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button id="newChatBtn" class="new-chat-btn">
+                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        New Chat
+                    </button>
+                </div>
+
+                <div class="sidebar-content">
+                    <div class="chat-history">
+                        <h3>Current Session</h3>
+                        <p id="messageCount">1 message</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="user-avatar">👤</div>
+                        <div class="user-details">
+                            <h4 id="userEmail">Loading...</h4>
+                            <p>Authenticated</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chat -->
+            <div class="main-chat">
+                <div class="chat-header">
+                    <button id="mobileMenuBtn" class="mobile-menu-btn">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="bot-avatar">🤖</div>
+                    <div class="bot-info">
+                        <h2>AI Assistant</h2>
+                        <p>Online • Ready to help</p>
+                    </div>
+                </div>
+
+                <div class="messages-container">
+                    <div id="messages" class="messages">
+                        <div class="message assistant">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                👋 Hello! I'm your AI assistant with access to web search, tools, and real-time information. How can I help you today?
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" class="input-field" placeholder="Ask me anything... I have access to web search and tools!" rows="1"></textarea>
+                        <button id="sendButton" class="send-button">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Overlay -->
+        <div id="chatOverlay" class="chat-overlay"></div>
+    </div>
+
+    <script>
+        // Firebase Configuration - Replace with your config
+        const firebaseConfig = {
+          apiKey: "AIzaSyB_-5yYyCJO5EA7pLkklhr58FV5JHcryb0",
+          authDomain: "custom-assistant-cf3be.firebaseapp.com",
+          projectId: "custom-assistant-cf3be",
+          storageBucket: "custom-assistant-cf3be.firebasestorage.app",
+          messagingSenderId: "1077986184235",
+          appId: "1:1077986184235:web:f924631fb597f16e55ee6e",
+          measurementId: "G-ZFCH9HZW6J"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Global state
+        let currentUser = null;
+        let messages = [];
+        let isLoading = false;
+
+        // DOM elements
+        const loadingScreen = document.getElementById('loadingScreen');
+        const loginScreen = document.getElementById('loginScreen');
+        const chatContainer = document.getElementById('chatContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginButton = document.getElementById('loginButton');
+        const loginText = document.getElementById('loginText');
+        const loginSpinner = document.getElementById('loginSpinner');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const userEmail = document.getElementById('userEmail');
+        const messageCount = document.getElementById('messageCount');
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const chatOverlay = document.getElementById('chatOverlay');
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeAuth();
+            setupEventListeners();
+        });
+
+        // Auth state observer
+        function initializeAuth() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    try {
+                        // Check if user is authorized
+                        const userDoc = await db.collection('authorizedUsers').doc(user.uid).get();
+                        if (userDoc.exists && userDoc.data().authorized === true) {
+                            currentUser = user;
+                            showChatInterface();
+                        } else {
+                            await auth.signOut();
+                            showError('Your account is not authorized. Contact admin.');
+                            showLoginScreen();
+                        }
+                    } catch (error) {
+                        console.error('Auth check error:', error);
+                        showError('Authentication error. Please try again.');
+                        showLoginScreen();
+                    }
+                } else {
+                    currentUser = null;
+                    showLoginScreen();
+                }
+            });
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Login
+            loginButton.addEventListener('click', handleLogin);
+            emailInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleLogin();
+            });
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleLogin();
+            });
+
+            // Logout
+            logoutBtn.addEventListener('click', handleLogout);
+
+            // New chat
+            newChatBtn.addEventListener('click', startNewChat);
+
+            // Send message
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // Mobile menu
+            mobileMenuBtn.addEventListener('click', () => {
+                sidebar.classList.add('open');
+                chatOverlay.classList.add('show');
+            });
+
+            chatOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                chatOverlay.classList.remove('show');
+            });
+        }
+
+        // Login handler
+        async function handleLogin() {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!email || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            setLoginLoading(true);
+            hideError();
+
+            try {
+                // For demo purposes, simulate auth
+                if (email === 'demo@example.com' && password === 'demo123') {
+                    // Simulate successful auth
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    currentUser = { email: email, uid: 'demo-user' };
+                    showChatInterface();
+                } else {
+                    // Use real Firebase auth
+                    await auth.signInWithEmailAndPassword(email, password);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                if (error.code === 'auth/user-not-found') {
+                    showError('No account found with this email');
+                } else if (error.code === 'auth/wrong-password') {
+                    showError('Incorrect password');
+                } else if (error.code === 'auth/invalid-email') {
+                    showError('Invalid email address');
+                } else {
+                    showError('Login failed: ' + error.message);
+                }
+            } finally {
+                setLoginLoading(false);
+            }
+        }
+
+        // Logout handler
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+                currentUser = null;
+                messages = [];
+                showLoginScreen();
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        // Send message
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isLoading) return;
+
+            // Add user message
+            addMessage('user', message);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            updateMessageCount();
+
+            // Show typing indicator
+            showTypingIndicator();
+            setLoading(true);
+
+            try {
+                // Get auth token
+                const token = currentUser.uid === 'demo-user' ? 'demo-token' : await currentUser.getIdToken();
+
+                // Call API
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        history: messages.slice(-10) // Last 10 messages for context
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Remove typing indicator
+                hideTypingIndicator();
+
+                // Add assistant response
+                addMessage('assistant', data.response || data.content || 'I received your message but couldn\'t generate a response.', data.tools);
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                hideTypingIndicator();
+                addMessage('assistant', `Sorry, I encountered an error: ${error.message}. Please try again.`, [], true);
+            } finally {
+                setLoading(false);
+                updateMessageCount();
+            }
+        }
+
+        // Add message to chat
+        function addMessage(type, content, tools = [], isError = false) {
+            const messageId = Date.now();
+            const message = { id: messageId, type, content, tools, error: isError };
+            messages.push(message);
+
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type} ${isError ? 'error' : ''}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = type === 'user' ? '👤' : '🤖';
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+
+            // Add tools if present
+            if (tools && tools.length > 0) {
+                const toolsDiv = document.createElement('div');
+                toolsDiv.className = 'message-tools';
+
+                const toolsLabel = document.createElement('div');
+                toolsLabel.className = 'tools-label';
+                toolsLabel.textContent = 'Tools used:';
+
+                const toolTags = document.createElement('div');
+                toolTags.className = 'tool-tags';
+
+                tools.forEach(tool => {
+                    const tag = document.createElement('span');
+                    tag.className = 'tool-tag';
+                    tag.textContent = tool;
+                    toolTags.appendChild(tag);
+                });
+
+                toolsDiv.appendChild(toolsLabel);
+                toolsDiv.appendChild(toolTags);
+                messageContent.appendChild(toolsDiv);
+            }
+
+            messageElement.appendChild(avatar);
+            messageElement.appendChild(messageContent);
+
+            messagesContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        // Show typing indicator
+        function showTypingIndicator() {
+            const typingElement = document.createElement('div');
+            typingElement.id = 'typingIndicator';
+            typingElement.className = 'message assistant';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.innerHTML = `
+                <span>AI is thinking</span>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+
+            content.appendChild(indicator);
+            typingElement.appendChild(avatar);
+            typingElement.appendChild(content);
+
+            messagesContainer.appendChild(typingElement);
+            scrollToBottom();
+        }
+
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // Start new chat
+        function startNewChat() {
+            messages = [];
+            messagesContainer.innerHTML = '';
+            addMessage('assistant', '👋 Hello! I\'m your AI assistant with access to web search, tools, and real-time information. How can I help you today?');
+            updateMessageCount();
+
+            // Close mobile menu
+            sidebar.classList.remove('open');
+            chatOverlay.classList.remove('show');
+        }
+
+        // Update message count
+        function updateMessageCount() {
+            const count = messages.length;
+            messageCount.textContent = `${count} message${count !== 1 ? 's' : ''}`;
+        }
+
+        // Scroll to bottom
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // UI state functions
+        function showLoginScreen() {
+            loadingScreen.style.display = 'none';
+            loginScreen.style.display = 'flex';
+            chatContainer.style.display = 'none';
+        }
+
+        function showChatInterface() {
+            loadingScreen.style.display = 'none';
+            loginScreen.style.display = 'none';
+            chatContainer.style.display = 'block';
+
+            if (currentUser) {
+                userEmail.textContent = currentUser.email;
+            }
+
+            updateMessageCount();
+        }
+
+        function setLoginLoading(loading) {
+            isLoading = loading;
+            loginButton.disabled = loading;
+            if (loading) {
+                loginText.classList.add('hidden');
+                loginSpinner.classList.remove('hidden');
+            } else {
+                loginText.classList.remove('hidden');
+                loginSpinner.classList.add('hidden');
+            }
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            sendButton.disabled = loading || !messageInput.value.trim();
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
