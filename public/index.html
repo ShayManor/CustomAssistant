@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        .loading-content {
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-spinner::before {
+            content: '🤖';
+            font-size: 24px;
+            animation: spin 1s linear infinite reverse;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: none;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #4c1d95 50%, #0f172a 100%);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 32px;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .login-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .login-subtitle {
+            color: #94a3b8;
+            font-size: 16px;
+        }
+
+        .google-login-button {
+            width: 100%;
+            padding: 16px;
+            background: white;
+            border: none;
+            border-radius: 12px;
+            color: #374151;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .google-login-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .google-login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .auth-info {
+            text-align: center;
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            color: #93c5fd;
+        }
+
+        /* Chat Interface */
+        .chat-container {
+            display: none;
+            height: 100vh;
+            background: #0f172a;
+        }
+
+        .chat-layout {
+            display: flex;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sidebar-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .sidebar-title h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            color: #ffffff;
+            background: #374151;
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .new-chat-btn:hover {
+            background: #2563eb;
+        }
+
+        .settings-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #374151;
+            border: none;
+            border-radius: 12px;
+            color: #9ca3af;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .settings-btn:hover {
+            background: #4b5563;
+            color: white;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .chat-history {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .chat-history h3 {
+            color: #ffffff;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .chat-history p {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .sidebar-footer {
+            padding: 24px;
+            border-top: 1px solid #334155;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        .user-details h4 {
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-details p {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        /* System Prompt Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+            background: #374151;
+        }
+
+        .prompt-textarea {
+            width: 100%;
+            min-height: 200px;
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 8px;
+            padding: 12px;
+            color: #ffffff;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+
+        .prompt-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .prompt-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            padding: 8px 16px;
+            background: #374151;
+            border: none;
+            border-radius: 8px;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+            color: white;
+        }
+
+        .btn-primary {
+            padding: 8px 16px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        /* File Upload */
+        .file-upload-area {
+            display: none;
+            background: #374151;
+            border: 2px dashed #4b5563;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .file-upload-area.show {
+            display: block;
+        }
+
+        .file-upload-text {
+            color: #9ca3af;
+            margin-bottom: 12px;
+        }
+
+        .file-upload-button {
+            background: #4b5563;
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .file-upload-button:hover {
+            background: #6b7280;
+        }
+
+        .attached-files {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            background: #4b5563;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            color: #e5e7eb;
+            gap: 8px;
+        }
+
+        .file-remove {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 0;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-remove:hover {
+            background: #ef4444;
+            color: white;
+        }
+
+        .attachment-button {
+            width: 48px;
+            height: 48px;
+            background: #4b5563;
+            border: none;
+            border-radius: 12px;
+            color: #9ca3af;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .attachment-button:hover {
+            background: #6b7280;
+            color: #ffffff;
+        }
+
+        .attachment-button.active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        /* Main Chat */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .chat-header {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bot-avatar {
+            width: 32px;
+            height: 32px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .bot-info h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .bot-info p {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #0f172a;
+        }
+
+        .messages {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .message {
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .message.user .message-avatar {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #374151;
+            color: #9ca3af;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 16px 20px;
+            border-radius: 18px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .message.user .message-content {
+            background: #3b82f6;
+            color: white;
+            margin-right: 0;
+        }
+
+        .message.assistant .message-content {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+        }
+
+        .message.error .message-content {
+            background: #7f1d1d;
+            border: 1px solid #dc2626;
+            color: #fca5a5;
+        }
+
+        .message-tools {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tools-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .tool-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tool-tag {
+            padding: 4px 8px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+            font-size: 11px;
+            border-radius: 12px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #64748b;
+            border-radius: 50%;
+            animation: typing 1.5s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+
+        /* Input Area */
+        .input-container {
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            padding: 24px;
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-field {
+            flex: 1;
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 12px;
+            padding: 16px;
+            color: #ffffff;
+            font-size: 16px;
+            resize: none;
+            min-height: 24px;
+            max-height: 120px;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .input-field::placeholder {
+            color: #64748b;
+        }
+
+        .send-button {
+            width: 48px;
+            height: 48px;
+            background: #3b82f6;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .send-button:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -320px;
+                z-index: 100;
+                transition: left 0.3s ease;
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .chat-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 50;
+                display: none;
+            }
+
+            .chat-overlay.show {
+                display: block;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+                background: none;
+                border: none;
+                color: #64748b;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+            }
+
+            .mobile-menu-btn:hover {
+                color: #ffffff;
+                background: #374151;
+            }
+        }
+
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        /* Icons */
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .icon-sm {
+            width: 16px;
+            height: 16px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>Loading your AI assistant...</h2>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-icon">🤖</div>
+                <h1 class="login-title">AI Assistant</h1>
+                <p class="login-subtitle">Access your intelligent companion</p>
+            </div>
+
+            <div id="errorMessage" class="error-message hidden"></div>
+
+            <button id="googleLoginButton" class="google-login-button">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span id="googleLoginText">Continue with Google</span>
+                <div id="googleLoginSpinner" class="hidden">⟳</div>
+            </button>
+
+            <div class="auth-info">
+                <strong>Note:</strong><br>
+                Only authorized Google accounts can access this assistant.<br>
+                Contact Shay if you need access.
+            </div>
+        </div>
+    </div>
+
+    <!-- System Prompt Modal -->
+    <div id="promptModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">System Prompt Settings</h3>
+                <button id="promptModalClose" class="modal-close">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <textarea id="systemPromptTextarea" class="prompt-textarea" placeholder="Enter your custom system prompt here..."></textarea>
+            <div class="prompt-actions">
+                <button id="resetPromptBtn" class="btn-secondary">Reset to Default</button>
+                <button id="savePromptBtn" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chatContainer" class="chat-container">
+        <div class="chat-layout">
+            <!-- Sidebar -->
+            <div id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">
+                        <h1>AI Assistant</h1>
+                        <button id="logoutBtn" class="logout-btn">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button id="newChatBtn" class="new-chat-btn">
+                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        New Chat
+                    </button>
+                    <button id="settingsBtn" class="settings-btn">
+                        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="m12 1 1.68 2.32L16 4l.68 2.32L19 8l-.32 1.68L20 12l-1.32 1.68L19 16l-2.32.68L15 19l-1.68-.32L12 20l-1.68-1.32L8 19l-.68-2.32L5 16l.32-1.68L4 12l1.32-1.68L5 8l2.32-.68L9 5l1.68.32L12 1z"></path>
+                        </svg>
+                        System Prompt
+                    </button>
+                </div>
+
+                <div class="sidebar-content">
+                    <div class="chat-history">
+                        <h3>Current Session</h3>
+                        <p id="messageCount">1 message</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="user-avatar">👤</div>
+                        <div class="user-details">
+                            <h4 id="userEmail">Loading...</h4>
+                            <p>Authenticated</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chat -->
+            <div class="main-chat">
+                <div class="chat-header">
+                    <button id="mobileMenuBtn" class="mobile-menu-btn">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="bot-avatar">🤖</div>
+                    <div class="bot-info">
+                        <h2>AI Assistant</h2>
+                        <p>Online • Ready to help</p>
+                    </div>
+                </div>
+
+                <div class="messages-container">
+                    <div id="messages" class="messages">
+                        <div class="message assistant">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">👋 Hello! I'm your AI assistant with access to web search, tools, and real-time information. I can also analyze files you upload. How can I help you today?</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <div style="flex: 1;">
+                            <!-- File Upload Area -->
+                            <div id="fileUploadArea" class="file-upload-area">
+                                <div class="file-upload-text">
+                                    Drag and drop files here, or click to select
+                                </div>
+                                <button type="button" class="file-upload-button" onclick="document.getElementById('fileInput').click()">
+                                    Choose Files
+                                </button>
+                                <input type="file" id="fileInput" multiple style="display: none;" accept=".txt,.pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.csv,.json">
+                            </div>
+
+                            <!-- Attached Files -->
+                            <div id="attachedFiles" class="attached-files"></div>
+
+                            <!-- Message Input -->
+                            <textarea id="messageInput" class="input-field" placeholder="Ask me anything... I have access to web search and tools!" rows="1"></textarea>
+                        </div>
+
+                        <div style="display: flex; gap: 8px;">
+                            <button id="attachmentButton" class="attachment-button">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                </svg>
+                            </button>
+                            <button id="sendButton" class="send-button">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Overlay -->
+        <div id="chatOverlay" class="chat-overlay"></div>
+    </div>
+
+    <script>
+        // Firebase Configuration - Your real config
+        const firebaseConfig = {
+          apiKey: "AIzaSyB_-5yYyCJO5EA7pLkklhr58FV5JHcryb0",
+          authDomain: "custom-assistant-cf3be.firebaseapp.com",
+          projectId: "custom-assistant-cf3be",
+          storageBucket: "custom-assistant-cf3be.firebasestorage.app",
+          messagingSenderId: "1077986184235",
+          appId: "1:1077986184235:web:f924631fb597f16e55ee6e",
+          measurementId: "G-ZFCH9HZW6J"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Default system prompt
+        const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant with access to web search, tools, and real-time information. You can analyze files and search the web for current information. When you need to search the web, use the web_search tool. Be helpful, accurate, and concise in your responses.`;
+
+        // Global state
+        let currentUser = null;
+        let messages = [];
+        let isLoading = false;
+        let attachedFiles = [];
+        let currentSystemPrompt = DEFAULT_SYSTEM_PROMPT;
+
+        // DOM elements
+        const loadingScreen = document.getElementById('loadingScreen');
+        const loginScreen = document.getElementById('loginScreen');
+        const chatContainer = document.getElementById('chatContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const googleLoginButton = document.getElementById('googleLoginButton');
+        const googleLoginText = document.getElementById('googleLoginText');
+        const googleLoginSpinner = document.getElementById('googleLoginSpinner');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const userEmail = document.getElementById('userEmail');
+        const messageCount = document.getElementById('messageCount');
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const attachmentButton = document.getElementById('attachmentButton');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const attachedFilesContainer = document.getElementById('attachedFiles');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const chatOverlay = document.getElementById('chatOverlay');
+
+        // System prompt modal elements
+        const promptModal = document.getElementById('promptModal');
+        const promptModalClose = document.getElementById('promptModalClose');
+        const systemPromptTextarea = document.getElementById('systemPromptTextarea');
+        const resetPromptBtn = document.getElementById('resetPromptBtn');
+        const savePromptBtn = document.getElementById('savePromptBtn');
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeAuth();
+            setupEventListeners();
+            loadSystemPrompt();
+        });
+
+        // Auth state observer
+        function initializeAuth() {
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    try {
+                        // Check if user is authorized
+                        const userDoc = await db.collection('authorizedUsers').doc(user.uid).get();
+                        if (userDoc.exists && userDoc.data().authorized === true) {
+                            currentUser = user;
+                            showChatInterface();
+                        } else {
+                            await auth.signOut();
+                            showError('Your account is not authorized. Contact admin.');
+                            showLoginScreen();
+                        }
+                    } catch (error) {
+                        console.error('Auth check error:', error);
+                        showError('Authentication error. Please try again.');
+                        showLoginScreen();
+                    }
+                } else {
+                    currentUser = null;
+                    showLoginScreen();
+                }
+            });
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Google Login
+            googleLoginButton.addEventListener('click', handleGoogleLogin);
+
+            // Logout
+            logoutBtn.addEventListener('click', handleLogout);
+
+            // New chat
+            newChatBtn.addEventListener('click', startNewChat);
+
+            // Settings
+            settingsBtn.addEventListener('click', openSystemPromptModal);
+
+            // System prompt modal
+            promptModalClose.addEventListener('click', closeSystemPromptModal);
+            resetPromptBtn.addEventListener('click', resetSystemPrompt);
+            savePromptBtn.addEventListener('click', saveSystemPrompt);
+            promptModal.addEventListener('click', (e) => {
+                if (e.target === promptModal) closeSystemPromptModal();
+            });
+
+            // Send message
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                updateSendButton();
+            });
+
+            // File attachment
+            attachmentButton.addEventListener('click', toggleFileUpload);
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Drag and drop
+            fileUploadArea.addEventListener('dragover', handleDragOver);
+            fileUploadArea.addEventListener('dragleave', handleDragLeave);
+            fileUploadArea.addEventListener('drop', handleFileDrop);
+
+            // Mobile menu
+            mobileMenuBtn.addEventListener('click', () => {
+                sidebar.classList.add('open');
+                chatOverlay.classList.add('show');
+            });
+
+            chatOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                chatOverlay.classList.remove('show');
+            });
+        }
+
+        // Google Login handler
+        async function handleGoogleLogin() {
+            setGoogleLoginLoading(true);
+            hideError();
+
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.addScope('email');
+                provider.addScope('profile');
+
+                await auth.signInWithPopup(provider);
+                // Auth state change will handle the rest
+            } catch (error) {
+                console.error('Google login error:', error);
+                if (error.code === 'auth/popup-closed-by-user') {
+                    showError('Login cancelled');
+                } else if (error.code === 'auth/popup-blocked') {
+                    showError('Popup blocked. Please enable popups and try again.');
+                } else {
+                    showError('Google login failed: ' + error.message);
+                }
+            } finally {
+                setGoogleLoginLoading(false);
+            }
+        }
+
+        // System prompt functions
+        function loadSystemPrompt() {
+            const saved = localStorage.getItem('systemPrompt');
+            if (saved) {
+                currentSystemPrompt = saved;
+            }
+        }
+
+        function saveSystemPromptToStorage() {
+            localStorage.setItem('systemPrompt', currentSystemPrompt);
+        }
+
+        function openSystemPromptModal() {
+            systemPromptTextarea.value = currentSystemPrompt;
+            promptModal.classList.add('show');
+        }
+
+        function closeSystemPromptModal() {
+            promptModal.classList.remove('show');
+        }
+
+        function resetSystemPrompt() {
+            systemPromptTextarea.value = DEFAULT_SYSTEM_PROMPT;
+        }
+
+        function saveSystemPrompt() {
+            currentSystemPrompt = systemPromptTextarea.value.trim() || DEFAULT_SYSTEM_PROMPT;
+            saveSystemPromptToStorage();
+            closeSystemPromptModal();
+
+            // Show feedback
+            const originalText = savePromptBtn.textContent;
+            savePromptBtn.textContent = 'Saved!';
+            setTimeout(() => {
+                savePromptBtn.textContent = originalText;
+            }, 1000);
+        }
+
+        // File handling functions
+        function toggleFileUpload() {
+            const isVisible = fileUploadArea.classList.contains('show');
+            if (isVisible) {
+                fileUploadArea.classList.remove('show');
+                attachmentButton.classList.remove('active');
+            } else {
+                fileUploadArea.classList.add('show');
+                attachmentButton.classList.add('active');
+            }
+        }
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            addFiles(files);
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+        }
+
+        function handleFileDrop(event) {
+            event.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = Array.from(event.dataTransfer.files);
+            addFiles(files);
+        }
+
+        function addFiles(files) {
+            files.forEach(file => {
+                // Check file size (10MB limit)
+                if (file.size > 10 * 1024 * 1024) {
+                    showError(`File "${file.name}" is too large. Maximum size is 10MB.`);
+                    return;
+                }
+
+                // Check if file already attached
+                if (attachedFiles.find(f => f.name === file.name && f.size === file.size)) {
+                    return;
+                }
+
+                attachedFiles.push(file);
+            });
+
+            updateAttachedFilesDisplay();
+            updateSendButton();
+        }
+
+        function removeFile(index) {
+            attachedFiles.splice(index, 1);
+            updateAttachedFilesDisplay();
+            updateSendButton();
+        }
+
+        function updateAttachedFilesDisplay() {
+            attachedFilesContainer.innerHTML = '';
+
+            attachedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+
+                const fileName = document.createElement('span');
+                fileName.textContent = file.name;
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'file-remove';
+                removeBtn.innerHTML = '×';
+                removeBtn.onclick = () => removeFile(index);
+
+                fileItem.appendChild(fileName);
+                fileItem.appendChild(removeBtn);
+                attachedFilesContainer.appendChild(fileItem);
+            });
+        }
+
+        async function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Logout handler
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+                currentUser = null;
+                messages = [];
+                attachedFiles = [];
+                showLoginScreen();
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        // Send message
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if ((!message && attachedFiles.length === 0) || isLoading) return;
+
+            // Prepare files for upload
+            const fileData = [];
+            for (const file of attachedFiles) {
+                try {
+                    const base64 = await fileToBase64(file);
+                    fileData.push({
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: base64
+                    });
+                } catch (error) {
+                    showError(`Failed to process file: ${file.name}`);
+                    return;
+                }
+            }
+
+            // Add user message
+            const displayMessage = message + (attachedFiles.length > 0 ? ` [${attachedFiles.length} file(s) attached]` : '');
+            addMessage('user', displayMessage);
+
+            // Clear inputs
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            attachedFiles = [];
+            updateAttachedFilesDisplay();
+            fileUploadArea.classList.remove('show');
+            attachmentButton.classList.remove('active');
+            updateMessageCount();
+
+            // Show typing indicator
+            showTypingIndicator();
+            setLoading(true);
+
+            try {
+                // Get auth token
+                const token = await currentUser.getIdToken();
+
+                // Call API with system prompt and MCP support
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        files: fileData,
+                        history: messages.slice(-10), // Last 10 messages for context
+                        systemPrompt: currentSystemPrompt,
+                        mcpEnabled: true // Enable MCP web search
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Remove typing indicator
+                hideTypingIndicator();
+
+                // Add assistant response
+                addMessage('assistant', data.response || data.content || 'I received your message but couldn\'t generate a response.', data.tools);
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                hideTypingIndicator();
+                addMessage('assistant', `Sorry, I encountered an error: ${error.message}. Please try again.`, [], true);
+            } finally {
+                setLoading(false);
+                updateMessageCount();
+                updateSendButton();
+            }
+        }
+
+        // Add message to chat
+        function addMessage(type, content, tools = [], isError = false) {
+            const messageId = Date.now();
+            const message = { id: messageId, type, content, tools, error: isError };
+            messages.push(message);
+
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type} ${isError ? 'error' : ''}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = type === 'user' ? '👤' : '🤖';
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
+
+            // Add tools if present
+            if (tools && tools.length > 0) {
+                const toolsDiv = document.createElement('div');
+                toolsDiv.className = 'message-tools';
+
+                const toolsLabel = document.createElement('div');
+                toolsLabel.className = 'tools-label';
+                toolsLabel.textContent = 'Tools used:';
+
+                const toolTags = document.createElement('div');
+                toolTags.className = 'tool-tags';
+
+                tools.forEach(tool => {
+                    const tag = document.createElement('span');
+                    tag.className = 'tool-tag';
+                    tag.textContent = tool;
+                    toolTags.appendChild(tag);
+                });
+
+                toolsDiv.appendChild(toolsLabel);
+                toolsDiv.appendChild(toolTags);
+                messageContent.appendChild(toolsDiv);
+            }
+
+            messageElement.appendChild(avatar);
+            messageElement.appendChild(messageContent);
+
+            messagesContainer.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        // Show typing indicator
+        function showTypingIndicator() {
+            const typingElement = document.createElement('div');
+            typingElement.id = 'typingIndicator';
+            typingElement.className = 'message assistant';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.innerHTML = `
+                <span>AI is thinking</span>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+
+            content.appendChild(indicator);
+            typingElement.appendChild(avatar);
+            typingElement.appendChild(content);
+
+            messagesContainer.appendChild(typingElement);
+            scrollToBottom();
+        }
+
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // Start new chat
+        function startNewChat() {
+            messages = [];
+            attachedFiles = [];
+            messagesContainer.innerHTML = '';
+            updateAttachedFilesDisplay();
+            fileUploadArea.classList.remove('show');
+            attachmentButton.classList.remove('active');
+            addMessage('assistant', '👋 Hello! I\'m your AI assistant with access to web search, tools, and real-time information. I can also analyze files you upload. How can I help you today?');
+            updateMessageCount();
+            updateSendButton();
+
+            // Close mobile menu
+            sidebar.classList.remove('open');
+            chatOverlay.classList.remove('show');
+        }
+
+        // Update message count
+        function updateMessageCount() {
+            const count = messages.length;
+            messageCount.textContent = `${count} message${count !== 1 ? 's' : ''}`;
+        }
+
+        // Update send button state
+        function updateSendButton() {
+            const hasMessage = messageInput.value.trim().length > 0;
+            const hasFiles = attachedFiles.length > 0;
+            sendButton.disabled = isLoading || (!hasMessage && !hasFiles);
+        }
+
+        // Scroll to bottom
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // UI state functions
+        function showLoginScreen() {
+            loadingScreen.style.display = 'none';
+            loginScreen.style.display = 'flex';
+            chatContainer.style.display = 'none';
+        }
+
+        function showChatInterface() {
+            loadingScreen.style.display = 'none';
+            loginScreen.style.display = 'none';
+            chatContainer.style.display = 'block';
+
+            if (currentUser) {
+                userEmail.textContent = currentUser.email;
+            }
+
+            updateMessageCount();
+            updateSendButton();
+        }
+
+        function setGoogleLoginLoading(loading) {
+            isLoading = loading;
+            googleLoginButton.disabled = loading;
+            if (loading) {
+                googleLoginText.classList.add('hidden');
+                googleLoginSpinner.classList.remove('hidden');
+            } else {
+                googleLoginText.classList.remove('hidden');
+                googleLoginSpinner.classList.add('hidden');
+            }
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            updateSendButton();
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
